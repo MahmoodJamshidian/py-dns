@@ -1,8 +1,16 @@
 from .zone import *
 import json
 import aiofiles
+from dataclasses import dataclass
 
 type ZoneMapping = Mapping[str, Union[str, Iterable]]
+
+@dataclass
+class DBConfiguration:
+    mainzone: Zone
+    recursion_sources: list[RecursionSource]
+    allow_sources: list[RequestSource]
+    ptr_records: list[PTRRecord]
 
 async def load_records(records: list[Mapping], host: str, /, *, ptr_records: list[PTRRecord]) -> list[DNSRecordType]:
     records_ins: list[DNSRecordType] = []
@@ -95,7 +103,7 @@ async def load_zone(zone: ZoneMapping, parent_zone: Zone = None, /, *, recursion
 
     return _zone
 
-async def load_db(db_path: str) -> Zone:
+async def load_db(db_path: str) -> DBConfiguration:
     async with aiofiles.open(db_path, 'r') as f:
         data: dict = json.loads(await f.read())
 
@@ -106,8 +114,15 @@ async def load_db(db_path: str) -> Zone:
     allow_sources: list[RequestSource] = []
     ptr_records: list[PTRRecord] = []
 
-    return await load_zone(data,
+    zone: Zone = await load_zone(data,
         recursion_sources=recursion_sources,
         allow_sources=allow_sources,
         ptr_records=ptr_records
+    )
+
+    return DBConfiguration(
+        zone,
+        recursion_sources,
+        allow_sources,
+        ptr_records
     )
