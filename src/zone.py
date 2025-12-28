@@ -1,5 +1,5 @@
 from enum import Enum
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from abc import ABC
 from typing import *
 import ipaddress
@@ -14,7 +14,6 @@ class RecordType(Enum):
     TXT = "TXT"     # text
     PTR = "PTR"     # pointer to IP
 
-@dataclass
 class BaseRecord(ABC):
     ttl: Optional[int] = None
     record_type: RecordType = None
@@ -146,16 +145,16 @@ class RequestSource(IPComparableMixin):
 
 @dataclass
 class Zone:
-    parent: Self = None
     namespace: str
     records: list[BaseRecord]
     recursion: list[RecursionSource]
     allow_sources: list[RequestSource]
-    subsets: list[Self] = []
+    subsets: list[Self] = field(default_factory=list)
+    parent: Self = None
 
     @property
     def host(self) -> str:
-        return self.namespace + ("." if not self.parent else self.parent.host)
+        return (self.namespace or "") + ("." if not self.parent else self.parent.host)
 
 def validate_hostname(name: str):
     if not name:

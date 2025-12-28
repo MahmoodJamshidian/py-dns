@@ -20,7 +20,7 @@ async def load_records(records: list[Mapping], host: str, /, *, ptr_records: lis
 
         record_type: Type[BaseRecord] = next(filter(lambda t: t.record_type == rtype, (ARecord, AAAARecord, CNAMERecord, TXTRecord,)))
 
-        record_params: set = set(record_type.__dict__["__annotations__"]) & set(("record_type",))
+        record_params: set = set(record_type.__annotations__) - set(("record_type",))
 
         params: dict = dict(filter(lambda param: param[0] in record_params, record.items()))
 
@@ -35,7 +35,7 @@ async def load_records(records: list[Mapping], host: str, /, *, ptr_records: lis
         if record_ins not in records_ins:
             records_ins.append(record_ins)
 
-    return record_ins
+    return records_ins
 
 async def load_zone(zone: ZoneMapping, parent_zone: Zone = None, /, *, recursion_sources: list[RecursionSource], allow_sources: list[RequestSource], ptr_records: list[PTRRecord]) -> Zone:
     namespace: str = zone.get("namespace") or None
@@ -46,7 +46,7 @@ async def load_zone(zone: ZoneMapping, parent_zone: Zone = None, /, *, recursion
     if not parent_zone and namespace:
         raise Exception("subzone cant be root")
 
-    if not parent_zone and not namespace.endswith("."):
+    if not parent_zone and namespace and not namespace.endswith("."):
         raise Exception("root identifier cant find in head zone namespace")
 
     if not namespace and zone.get("records"):
@@ -80,24 +80,24 @@ async def load_zone(zone: ZoneMapping, parent_zone: Zone = None, /, *, recursion
 
         allow_sources_zone.append(src)
 
-    zone: Zone = Zone(parent_zone, namespace, records, recursion_sources_zone, allow_sources_zone)
+    _zone: Zone = Zone(namespace, records, recursion_sources_zone, allow_sources_zone, parent=parent_zone)
 
     for subzone in zone.get("subzones", []):
         subz: Zone = await load_zone(
             subzone,
-            zone,
+            _zone,
             recursion_sources=recursion_sources,
             allow_sources=allow_sources,
             ptr_records=ptr_records
         )
 
-        zone.subsets.append(subz)
+        _zone.subsets.append(subz)
 
-    return zone
+    return _zone
 
 async def load_db(db_path: str) -> Zone:
     async with aiofiles.open(db_path, 'r') as f:
-        data: dict = json.load(await f.read())
+        data: dict = json.loads(await f.read())
 
     if not isinstance(data, dict):
         raise Exception("cant load database, object file expected")
